@@ -21,9 +21,20 @@ class BillingsDb(SqlSoup):
         uri = 'sqlite:///' + db_path
         SqlSoup.__init__(self, uri)
         self.setup_constants()
+        self.setup_relations()
 
     def setup_constants(self):
         self.TimeSlip.nature_const = TimeSlipNatureConstants
+
+    def setup_relations(self):
+        # Add one:many relations.
+        self.Project.relate(
+            'time_slips',
+            self.TimeSlip,
+            foreign_keys=[self.TimeSlip.projectID],
+            primaryjoin=self.Project.projectID == self.TimeSlip.projectID,
+            backref='project',
+            )
 
     def _getAttributeNames(self):
         """Allows autocompletion of table names in IPython shell."""
