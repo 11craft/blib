@@ -29,6 +29,15 @@ class BillingsDb(SqlSoup):
         """Allows autocompletion of table names in IPython shell."""
         return self.engine.table_names()
 
+    def client_timeslips(self, company_name):
+        return self.TimeSlip.filter(
+            (self.Client.company == company_name)
+            & (self.Project.clientID == self.Client.clientID)
+            & (self.TimeSlip.projectID == self.Project.projectID)
+            & (self.TimeSlip.activeForTiming == False)
+            & (self.TimeSlip.nature != self.TimeSlip.nature_const.my_eyes_only)
+            ).all()
+
 
 def default_billings_db():
     billings_path = os.path.join(
