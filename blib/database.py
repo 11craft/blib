@@ -5,6 +5,10 @@ import os
 from sqlalchemy.ext.sqlsoup import SqlSoup
 
 
+class TimeSlipNatureConstants(object):
+    my_eyes_only = 103
+
+
 class BillingsDb(SqlSoup):
     """A SqlAlchemy/SqlSoup-based ORM to a Billings 3 database."""
 
@@ -16,6 +20,10 @@ class BillingsDb(SqlSoup):
                 ))
         uri = 'sqlite:///' + db_path
         SqlSoup.__init__(self, uri)
+        self.setup_constants()
+
+    def setup_constants(self):
+        self.TimeSlip.nature_const = TimeSlipNatureConstants
 
     def _getAttributeNames(self):
         """Allows autocompletion of table names in IPython shell."""
