@@ -29,11 +29,18 @@ class BillingsDb(SqlSoup):
     def setup_relations(self):
         # Add one:many relations.
         self.Project.relate(
-            'time_slips',
+            'timeSlips',
             self.TimeSlip,
             foreign_keys=[self.TimeSlip.projectID],
             primaryjoin=self.Project.projectID == self.TimeSlip.projectID,
             backref='project',
+            )
+        self.TimeSlip.relate(
+            'timeEntries',
+            self.TimeEntry,
+            foreign_keys=[self.TimeEntry.timeSlipID],
+            primaryjoin=self.TimeSlip.timeSlipID == self.TimeEntry.timeSlipID,
+            backref='timeSlip',
             )
 
     def _getAttributeNames(self):
