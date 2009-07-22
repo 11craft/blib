@@ -124,21 +124,62 @@ class BillingsDb(SqlSoup):
         self.TimeSlip.nature_const = TimeSlipNatureConstants
 
     def setup_relations(self):
-        # Add one:many relations.
-        self.Project.relate(
-            'timeSlips',
-            self.TimeSlip,
-            foreign_keys=[self.TimeSlip.projectID],
-            primaryjoin=self.Project.projectID == self.TimeSlip.projectID,
-            backref='project',
-            )
-        self.TimeSlip.relate(
-            'timeEntries',
-            self.TimeEntry,
-            foreign_keys=[self.TimeEntry.timeSlipID],
-            primaryjoin=self.TimeSlip.timeSlipID == self.TimeEntry.timeSlipID,
-            backref='timeSlip',
-            )
+        # Add generic one:many relations.
+        for one, many, many_plural in [
+            ('Category', 'EstimateSlip', None),
+            ('Category', 'SlipTemplate', None),
+            ('Category', 'TimeSlip', None),
+            ('Client', 'Invoice', None),
+            ('Client', 'Payment', None),
+            ('Client', 'ProFormaInvoice', None),
+            ('Client', 'Project', None),
+            ('Client', 'RecurringInvoice', None),
+            ('Client', 'Retainer', None),
+            ('Client', 'Statement', None),
+            ('ClientCategory', 'Client', None),
+            ('ConsolidatedTax', 'Estimate', None),
+            ('ConsolidatedTax', 'EstimateSlip', None),
+            ('ConsolidatedTax', 'Invoice', None),
+            ('ConsolidatedTax', 'SlipTemplate', None),
+            ('ConsolidatedTax', 'Tax', 'taxes'),
+            ('ConsolidatedTax', 'TaxConsolidatedTaxEntry',
+             'taxConsolidatedTaxEntries'),
+            ('ConsolidatedTax', 'TimeSlip', None),
+            ('Estimate', 'EstimateSlip', None),
+            ('Invoice', 'PaymentInvoiceEntry', 'paymentInvoiceEntries'),
+            ('Invoice', 'TimeSlip', None),
+            ('Payment', 'PaymentInvoiceEntry', 'paymentInvoiceEntries'),
+            ('Project', 'Estimate', None),
+            ('Project', 'EstimateSlip', None),
+            ('Project', 'Invoice', None),
+            ('Project', 'Note', None),
+            ('Project', 'Payment', None),
+            ('Project', 'Retainer', None),
+            ('Project', 'TimeSlip', None),
+            ('Project', 'URLReference', None),
+            ('RecurringInvoice', 'SlipTemplate', None),
+            ('Tax', 'TaxConsolidatedTaxEntry', 'taxConsolidatedTaxEntries'),
+            ('TimeSlip', 'TimeEntry', 'timeEntries'),
+            ('User', 'EstimateSlip', None),
+            ('User', 'SlipTemplate', None),
+            ('User', 'TimeSlip', None),
+            ]:
+            one_table = getattr(self, one)
+            one_field = one[0].lower() + one[1:]
+            one_id = one_field + 'ID'
+            many_table = getattr(self, many)
+            many_field = many_plural or many[0].lower() + many[1:] + 's'
+            many_id = many_field + 'ID'
+            one_table.relate(
+                many_field,
+                many_table,
+                foreign_keys=[getattr(many_table, one_id)],
+                primaryjoin=(getattr(one_table, one_id)
+                             == getattr(many_table, one_id)),
+                backref=one_field,
+                )
+        # TODO: Add additional relationships that aren't generic 1:many...
+        # or that have shortened ID fields.
 
     def _getAttributeNames(self):
         """Allows autocompletion of table names in IPython shell."""
