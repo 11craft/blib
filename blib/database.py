@@ -4,9 +4,35 @@ import os
 
 from sqlalchemy.ext.sqlsoup import SqlSoup
 
+from blib.convert import nsdate_to_datetime
+
 
 class TimeSlipNatureConstants(object):
     my_eyes_only = 103
+
+
+class DateTimeInstrumentedAttribute(object):
+    # XXX: Surely a cleaner way to do this?
+    # Overriding CoreData date time values with datetime objects.
+
+    def __init__(self, original):
+        self.original = original
+
+    def __set__(self, instance, value):
+        self.original.__set__(instance, value)
+
+    def __delete__(self, instance):
+        self.original.__delete__(instance)
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self.original
+        else:
+            value = self.original.__get__(instance, owner)
+            if value is None:
+                return None
+            else:
+                return nsdate_to_datetime(value)
 
 
 class BillingsDb(SqlSoup):
@@ -20,8 +46,79 @@ class BillingsDb(SqlSoup):
                 ))
         uri = 'sqlite:///' + db_path
         SqlSoup.__init__(self, uri)
+        self.setup_attributes()
         self.setup_constants()
         self.setup_relations()
+
+    def setup_attributes(self):
+        # XXX: See DateTimeInstrumentedAttribute comments.
+        for table_name, column_name in [
+            ('Client', 'modifyDate'),
+            ('Client', 'createDate'),
+            ('ConsolidatedTax', 'createDate'),
+            ('Estimate', 'dueDate'),
+            ('Estimate', 'sentDate'),
+            ('Estimate', 'modifyDate'),
+            ('Estimate', 'createDate'),
+            ('EstimateSlip', 'dueDate'),
+            ('EstimateSlip', 'endDateTime'),
+            ('EstimateSlip', 'modifyDate'),
+            ('EstimateSlip', 'createDate'),
+            ('EstimateSlip', 'foreignAppLastTouchDate'),
+            ('EstimateSlip', 'startDateTime'),
+            ('Invoice', 'invoiceDate'),
+            ('Invoice', 'dueDate'),
+            ('Invoice', 'sentDate'),
+            ('Invoice', 'modifyDate'),
+            ('Invoice', 'taxPointDate'),
+            ('Invoice', 'createDate'),
+            ('Note', 'createDate'),
+            ('Note', 'modifyDate'),
+            ('Payment', 'createDate'),
+            ('Payment', 'modifyDate'),
+            ('PaymentInvoiceEntry', 'createDate'),
+            ('PaymentInvoiceEntry', 'modifyDate'),
+            ('ProFormaInvoice', 'createDate'),
+            ('ProFormaInvoice', 'dueDate'),
+            ('ProFormaInvoice', 'invoiceDate'),
+            ('ProFormaInvoice', 'modifyDate'),
+            ('Project', 'dueDate'),
+            ('Project', 'completeDate'),
+            ('Project', 'modifyDate'),
+            ('Project', 'startDate'),
+            ('Project', 'createDate'),
+            ('Project', 'foreignAppLastTouchDate'),
+            ('RecurringInvoice', 'lastSentDate'),
+            ('RecurringInvoice', 'nextSendDate'),
+            ('RecurringInvoice', 'lastPlannedSendDate'),
+            ('RecurringInvoice', 'modifyDate'),
+            ('Retainer', 'createDate'),
+            ('Retainer', 'modifyDate'),
+            ('Statement', 'sentDate'),
+            ('Statement', 'fromDate'),
+            ('Statement', 'toDate'),
+            ('Tax', 'createDate'),
+            ('TimeEntry', 'endDateTime'),
+            ('TimeEntry', 'modifyDate'),
+            ('TimeEntry', 'createDate'),
+            ('TimeEntry', 'foreignAppLastTouchDate'),
+            ('TimeEntry', 'startDateTime'),
+            ('TimeSlip', 'invoicedDate'),
+            ('TimeSlip', 'dueDate'),
+            ('TimeSlip', 'endDateTime'),
+            ('TimeSlip', 'modifyDate'),
+            ('TimeSlip', 'createDate'),
+            ('TimeSlip', 'foreignAppLastTouchDate'),
+            ('TimeSlip', 'startDateTime'),
+            ('URLReference', 'createDate'),
+            ('URLReference', 'modifyDate'),
+            ('User', 'createDate'),
+            ('User', 'modifyDate'),
+            ]:
+            table = getattr(self, table_name)
+            original_attribute = getattr(table, column_name)
+            new_attribute = DateTimeInstrumentedAttribute(original_attribute)
+            setattr(table, column_name, new_attribute)
 
     def setup_constants(self):
         self.TimeSlip.nature_const = TimeSlipNatureConstants
