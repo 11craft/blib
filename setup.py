@@ -22,5 +22,7 @@ setup(
         'sqlalchemy >= 0.5.5',
         ],
     entry_points="""
+        [console_scripts]
+        blib-adiumbridge = blib.adiumbridge:main
         """,
     )
