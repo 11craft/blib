@@ -3,8 +3,10 @@
 import os
 
 from sqlalchemy.ext.sqlsoup import SqlSoup
+from sqlalchemy.orm import column_property
+from sqlalchemy.orm.properties import ColumnProperty
 
-from blib.convert import nsdate_to_datetime
+from blib.convert import datetime_to_nsdate, nsdate_to_datetime
 
 
 class TimeSlipNatureConstants(object):
@@ -35,6 +37,24 @@ class DateTimeInstrumentedAttribute(object):
                 return nsdate_to_datetime(value)
 
 
+class NsdateComparator(ColumnProperty.Comparator):
+
+    def __lt__(self, other):
+        return self.__clause_element__() < datetime_to_nsdate(other)
+
+    def __le__(self, other):
+        return self.__clause_element__() <= datetime_to_nsdate(other)
+
+    def __eq__(self, other):
+        return self.__clause_element__() == datetime_to_nsdate(other)
+
+    def __gt__(self, other):
+        return self.__clause_element__() > datetime_to_nsdate(other)
+
+    def __ge__(self, other):
+        return self.__clause_element__() >= datetime_to_nsdate(other)
+
+
 class BillingsDb(SqlSoup):
     """A SqlAlchemy/SqlSoup-based ORM to a Billings 3 database."""
 
@@ -49,76 +69,41 @@ class BillingsDb(SqlSoup):
         self.setup_attributes()
         self.setup_constants()
         self.setup_relations()
+        self.setup_column_introspection()
 
     def setup_attributes(self):
-        # XXX: See DateTimeInstrumentedAttribute comments.
-        for table_name, column_name in [
-            ('Client', 'modifyDate'),
-            ('Client', 'createDate'),
-            ('ConsolidatedTax', 'createDate'),
-            ('Estimate', 'dueDate'),
-            ('Estimate', 'sentDate'),
-            ('Estimate', 'modifyDate'),
-            ('Estimate', 'createDate'),
-            ('EstimateSlip', 'dueDate'),
-            ('EstimateSlip', 'endDateTime'),
-            ('EstimateSlip', 'modifyDate'),
-            ('EstimateSlip', 'createDate'),
-            ('EstimateSlip', 'foreignAppLastTouchDate'),
-            ('EstimateSlip', 'startDateTime'),
-            ('Invoice', 'invoiceDate'),
-            ('Invoice', 'dueDate'),
-            ('Invoice', 'sentDate'),
-            ('Invoice', 'modifyDate'),
-            ('Invoice', 'taxPointDate'),
-            ('Invoice', 'createDate'),
-            ('Note', 'createDate'),
-            ('Note', 'modifyDate'),
-            ('Payment', 'createDate'),
-            ('Payment', 'modifyDate'),
-            ('PaymentInvoiceEntry', 'createDate'),
-            ('PaymentInvoiceEntry', 'modifyDate'),
-            ('ProFormaInvoice', 'createDate'),
-            ('ProFormaInvoice', 'dueDate'),
-            ('ProFormaInvoice', 'invoiceDate'),
-            ('ProFormaInvoice', 'modifyDate'),
-            ('Project', 'dueDate'),
-            ('Project', 'completeDate'),
-            ('Project', 'modifyDate'),
-            ('Project', 'startDate'),
-            ('Project', 'createDate'),
-            ('Project', 'foreignAppLastTouchDate'),
-            ('RecurringInvoice', 'lastSentDate'),
-            ('RecurringInvoice', 'nextSendDate'),
-            ('RecurringInvoice', 'lastPlannedSendDate'),
-            ('RecurringInvoice', 'modifyDate'),
-            ('Retainer', 'createDate'),
-            ('Retainer', 'modifyDate'),
-            ('Statement', 'sentDate'),
-            ('Statement', 'fromDate'),
-            ('Statement', 'toDate'),
-            ('Tax', 'createDate'),
-            ('TimeEntry', 'endDateTime'),
-            ('TimeEntry', 'modifyDate'),
-            ('TimeEntry', 'createDate'),
-            ('TimeEntry', 'foreignAppLastTouchDate'),
-            ('TimeEntry', 'startDateTime'),
-            ('TimeSlip', 'invoicedDate'),
-            ('TimeSlip', 'dueDate'),
-            ('TimeSlip', 'endDateTime'),
-            ('TimeSlip', 'modifyDate'),
-            ('TimeSlip', 'createDate'),
-            ('TimeSlip', 'foreignAppLastTouchDate'),
-            ('TimeSlip', 'startDateTime'),
-            ('URLReference', 'createDate'),
-            ('URLReference', 'modifyDate'),
-            ('User', 'createDate'),
-            ('User', 'modifyDate'),
-            ]:
+        # Get all of the date-related column names.
+        date_columns = {
+            # table_name: [col_name, ...],
+            }
+        for table_name in self.engine.table_names():
             table = getattr(self, table_name)
-            original_attribute = getattr(table, column_name)
-            new_attribute = DateTimeInstrumentedAttribute(original_attribute)
-            setattr(table, column_name, new_attribute)
+            for column_name in table.c.keys():
+                if (column_name.endswith('Date')
+                    or column_name.endswith('DateTime')
+                    ):
+                    cols = date_columns.setdefault(table_name, [])
+                    cols.append(column_name)
+        # Override date-related columns.
+        for table_name, column_names in date_columns.iteritems():
+            # Map comparators.
+            properties = {}
+            table = self.entity(table_name)
+            for column_name in column_names:
+                column = table.c[column_name]
+                properties[column_name] = column_property(
+                    column,
+                    comparator_factory=NsdateComparator,
+                    )
+            # Keep new table.
+            table = self.map(self.entity(table_name), properties=properties)
+            setattr(self, table_name, table)
+            # Assign instrumented attributes.
+            for column_name in column_names:
+                original_attribute = getattr(table, column_name)
+                new_attribute = DateTimeInstrumentedAttribute(
+                    original_attribute)
+                setattr(table, column_name, new_attribute)
 
     def setup_constants(self):
         self.TimeSlip.nature_const = TimeSlipNatureConstants
@@ -180,6 +165,13 @@ class BillingsDb(SqlSoup):
                 )
         # TODO: Add additional relationships that aren't generic 1:many...
         # or that have shortened ID fields.
+
+    def setup_column_introspection(self):
+        for table_name in self.engine.table_names():
+            table = getattr(self, table_name)
+            def _getAttributeNames(c=table.c):
+                return c.keys()
+            table.c._getAttributeNames = _getAttributeNames
 
     def _getAttributeNames(self):
         """Allows autocompletion of table names in IPython shell."""
