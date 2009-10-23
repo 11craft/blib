@@ -14,8 +14,7 @@ class TimeSlipNatureConstants(object):
 
 
 class DateTimeInstrumentedAttribute(object):
-    # XXX: Surely a cleaner way to do this?
-    # Overriding CoreData date time values with datetime objects.
+    """Override NSDate values with datetime objects."""
 
     def __init__(self, original):
         self.original = original
@@ -38,6 +37,7 @@ class DateTimeInstrumentedAttribute(object):
 
 
 class NsdateComparator(ColumnProperty.Comparator):
+    """Properly compare datetime objects with NSDate-valued columns."""
 
     def __lt__(self, other):
         return self.__clause_element__() < datetime_to_nsdate(other)
